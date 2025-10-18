@@ -1,0 +1,5 @@
+flask
+torch
+fastai==1.0.51
+deoldify
+pillow
