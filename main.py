@@ -1,37 +1,36 @@
-from flask import Flask, request, send_file
-import torch
+from flask import Flask, request, jsonify
+import os
 from deoldify import device
 from deoldify.visualize import get_image_colorizer
-import tempfile
-import urllib.request
-from PIL import Image
-import os
+
+# تفعيل CUDA إذا كانت متوفرة
+device.set_device()
 
 app = Flask(__name__)
 colorizer = get_image_colorizer(artistic=True)
 
-@app.route('/')
+@app.route("/")
 def home():
-    return "🎨 DeOldify Colorizer API - استخدم ?url= لرابط الصورة القديمة"
+    return "🎨 خادم تلوين الصور DeOldify يعمل بنجاح!"
 
-@app.route('/colorize')
+@app.route("/colorize", methods=["POST"])
 def colorize():
-    url = request.args.get('url')
-    if not url:
-        return "❌ Missing ?url= parameter", 400
+    if "url" not in request.json:
+        return jsonify({"error": "يرجى إرسال رابط الصورة في الحقل url"}), 400
 
-    # تحميل الصورة من الإنترنت
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-    urllib.request.urlretrieve(url, tmp.name)
+    image_url = request.json["url"]
+    try:
+        output_path = colorizer.plot_transformed_image_from_url(
+            url=image_url,
+            render_factor=35,
+            display_render_factor=True,
+            figsize=(8,8),
+            post_process=True
+        )
+        return jsonify({"status": "success", "output": str(output_path)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-    # تلوين الصورة
-    result_path = colorizer.get_transformed_image(
-        path=tmp.name,
-        render_factor=35,
-        post_process=True
-    )
-
-    return send_file(result_path, mimetype="image/jpeg")
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
